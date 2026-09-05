@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Gestión de Proyectos — Sesuveca del Perú SAC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* =========================================================
+   Paleta Sesuveca del Perú SAC — minería de antracita / hierro / coque
+   ink      = antracita (carbón)      | primary = azul corporativo Sesuveca
+   executed = acero (equipos/planta)  | amber   = coque/horno (calor)
+   red      = óxido de hierro (mineral de hierro, uno de sus productos)
+   ========================================================= */
+:root{
+  --ink:#1E2226;
+  --paper:#EFF0F1;
+  --card:#FFFFFF;
+  --primary:#1B4D7A;
+  --primary-dark:#123655;
+  --executed:#3C6E71;
+  --amber:#C1791F;
+  --red:#A83232;
+  --border:#DCDEE1;
+  --text:#1E2226;
+  --muted:#666D75;
+  --sidebar-w:270px;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;}
+h1,h2,h3,.num-font{font-family:'Newsreader',serif;}
+.app{display:flex;min-height:100vh;}
+
+/* ---------- sidebar ---------- */
+.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--ink);color:#E9EAEC;display:flex;flex-direction:column;padding:22px 0;}
+.sidebar-title{padding:0 20px 18px;border-bottom:1px solid rgba(255,255,255,0.12);}
+.sidebar-title .brand{font-family:'Newsreader',serif;font-size:18px;font-weight:600;color:#fff;margin:0;line-height:1.25;}
+.sidebar-title .brand-sub{font-size:11.5px;color:#9BA1A8;margin-top:4px;letter-spacing:.02em;}
+.sidebar-search{padding:16px 20px 8px;}
+.sidebar-search input{width:100%;padding:8px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;font-size:13px;}
+.sidebar-search input::placeholder{color:#8A9096;}
+.nav-portfolio{margin:6px 20px 10px;padding:9px 12px;border-radius:6px;font-size:13px;color:#E9EAEC;cursor:pointer;display:flex;align-items:center;gap:8px;border:1px solid transparent;}
+.nav-portfolio:hover{background:rgba(255,255,255,0.06);}
+.nav-portfolio.active{background:rgba(27,77,122,0.35);border-color:rgba(255,255,255,0.15);font-weight:600;}
+.project-list{overflow-y:auto;flex:1;margin-top:4px;}
+.project-item{padding:10px 20px;cursor:pointer;display:flex;align-items:center;gap:9px;border-left:3px solid transparent;}
+.project-item:hover{background:rgba(255,255,255,0.05);}
+.project-item.active{background:rgba(255,255,255,0.08);border-left-color:#fff;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot-curso{background:#4E85B8;}
+.dot-riesgo{background:#D69A45;}
+.dot-atrasado{background:#C1554F;}
+.dot-completado{background:#5E9A9D;}
+.dot-pausado{background:#8A9096;}
+.pi-text{overflow:hidden;}
+.pi-name{font-size:13px;color:#E9EAEC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pi-meta{font-size:11px;color:#8A9096;}
+.sidebar-foot{padding:14px 20px 0;border-top:1px solid rgba(255,255,255,0.12);margin-top:10px;font-size:11px;color:#8A9096;}
+
+/* ---------- main ---------- */
+.main{flex:1;min-width:0;}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.topbar h1{font-size:20px;font-weight:600;margin:0;}
+.topbar .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.connect-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative;}
+.connect-box input[type=text]{padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;width:210px;color:var(--text);}
+.icon-btn{width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{border-color:var(--primary);color:var(--primary);}
+.settings-popover{position:absolute;top:44px;right:0;width:260px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(20,25,30,0.16);padding:16px;z-index:40;}
+.settings-popover hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.settings-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:8px;color:var(--muted);}
+.settings-row strong{color:var(--text);font-weight:600;}
+.settings-row code{background:#F1F2F4;padding:2px 6px;border-radius:4px;font-size:11px;color:var(--text);letter-spacing:.02em;}
+.settings-row-label{font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+.settings-popover input[type=text]{width:100%;margin-bottom:8px;}
+
+/* ---------- candado de acceso ---------- */
+.lock-overlay{position:fixed;inset:0;background:linear-gradient(160deg,#1E2226 0%,#123655 100%);display:flex;align-items:center;justify-content:center;z-index:999;}
+.lock-card{background:var(--card);border-radius:14px;padding:36px 34px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.35);text-align:center;}
+.lock-card .brand{font-family:'Newsreader',serif;font-size:19px;font-weight:600;color:var(--ink);margin:0 0 2px;}
+.lock-card .brand-sub{font-size:12px;color:var(--muted);margin-bottom:22px;}
+.lock-card input[type=password]{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;text-align:center;letter-spacing:.15em;margin-bottom:12px;}
+.lock-card .btn-primary{width:100%;padding:10px;font-size:13px;}
+.lock-card .lock-error{font-size:12px;color:var(--red);margin-top:10px;min-height:16px;}
+.lock-icon{width:44px;height:44px;border-radius:50%;background:var(--paper);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:19px;}
+
+/* ---------- evidencia fotográfica ---------- */
+.evidence-grid{display:flex;flex-wrap:wrap;gap:12px;}
+.evidence-tile{width:110px;height:110px;border-radius:8px;overflow:hidden;position:relative;border:1px solid var(--border);cursor:pointer;background:#F4F5F6;}
+.evidence-tile img{width:100%;height:100%;object-fit:cover;display:block;}
+.evidence-tile .tag{position:absolute;bottom:0;left:0;right:0;background:rgba(30,34,38,0.72);color:#fff;font-size:9px;padding:3px 5px;text-align:center;}
+.evidence-tile .remove{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(30,34,38,0.75);color:#fff;font-size:11px;line-height:18px;text-align:center;border:none;cursor:pointer;}
+.evidence-add{width:110px;height:110px;border-radius:8px;border:1.5px dashed var(--border);background:transparent;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:11px;font-family:inherit;}
+.evidence-add:hover{border-color:var(--primary);color:var(--primary);}
+.evidence-add .plus{font-size:20px;line-height:1;}
+.evidence-empty-note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;}
+.lightbox{position:fixed;inset:0;background:rgba(20,22,25,0.88);z-index:900;display:flex;align-items:center;justify-content:center;cursor:zoom-out;}
+.lightbox img{max-width:88vw;max-height:88vh;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,0.4);}
+body.pdf-capture-mode .evidence-add,
+body.pdf-capture-mode .evidence-tile .remove{display:none !important;}
+.btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;}
+.btn:hover{border-color:var(--primary);color:var(--primary);}
+.btn:disabled{opacity:.55;cursor:default;}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary);}
+.btn-primary:hover{background:var(--primary-dark);color:#fff;}
+.btn-pdf{background:var(--ink);color:#fff;border-color:var(--ink);display:flex;align-items:center;gap:6px;}
+.btn-pdf:hover{background:#000;color:#fff;}
+.status-pill{font-size:11px;padding:4px 9px;border-radius:12px;font-weight:500;}
+.status-demo{background:#EDE7FA;color:#5B4B96;}
+.status-live{background:#E1EDF4;color:#123655;}
+.status-error{background:#F7E4E2;color:#7A2A26;}
+.autoref{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+
+.content{padding:26px 32px 60px;}
+.section-title{font-size:15px;font-weight:600;margin:0 0 14px;display:flex;align-items:center;justify-content:space-between;}
+.section{margin-bottom:30px;}
+
+/* KPI cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:28px;}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.kpi-label{font-size:11.5px;color:var(--muted);margin-bottom:6px;}
+.kpi-value{font-size:25px;font-weight:600;line-height:1;}
+.kpi-note{font-size:11px;color:var(--muted);margin-top:5px;}
+.kpi-value.c-amber{color:var(--amber);}
+.kpi-value.c-red{color:var(--red);}
+.kpi-value.c-teal{color:var(--executed);}
+
+.panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 22px;}
+
+/* gantt */
+.gantt{width:100%;}
+.gantt-scale{display:flex;font-size:10.5px;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px;margin-left:180px;position:relative;height:16px;}
+.gantt-scale span{position:absolute;transform:translateX(-50%);}
+.gantt-row{display:flex;align-items:center;padding:7px 0;border-bottom:1px solid #F0F1F3;}
+.gantt-row:last-child{border-bottom:none;}
+.gantt-label{width:180px;flex-shrink:0;font-size:12.5px;padding-right:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+.gantt-label:hover{color:var(--primary);}
+.gantt-track{flex:1;position:relative;height:22px;}
+.gantt-bar{position:absolute;height:8px;border-radius:4px;top:0;}
+.gantt-bar.plan{background:#9FC0DA;top:2px;}
+.gantt-bar.real{background:var(--executed);top:12px;}
+.gantt-today{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--red);}
+.gantt-legend{display:flex;gap:18px;font-size:11.5px;color:var(--muted);margin-top:12px;}
+.gantt-legend span{display:flex;align-items:center;gap:6px;}
+.leg-dot{width:10px;height:8px;border-radius:3px;display:inline-block;}
+
+/* table */
+table.projects{width:100%;border-collapse:collapse;font-size:13px;}
+table.projects th{text-align:left;font-weight:500;color:var(--muted);font-size:11.5px;padding:8px 10px;border-bottom:1px solid var(--border);}
+table.projects td{padding:10px 10px;border-bottom:1px solid #F0F1F3;vertical-align:middle;}
+table.projects tr.rowlink{cursor:pointer;}
+table.projects tr.rowlink:hover{background:#F7F8F9;}
+.badge{font-size:11px;padding:3px 9px;border-radius:12px;font-weight:500;white-space:nowrap;}
+.badge-curso{background:#E1EDF4;color:#123655;}
+.badge-riesgo{background:#FAF0DE;color:#8C5A0E;}
+.badge-atrasado{background:#F7E4E2;color:#7A2A26;}
+.badge-completado{background:#DFEEEE;color:#1F4C4E;}
+.badge-pausado{background:#EFEFEF;color:#585858;}
+.bar-mini{width:70px;height:6px;background:#EAEBED;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px;}
+.bar-mini-fill{height:100%;background:var(--primary);}
+
+/* project view header */
+.project-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:14px;}
+.project-head h2{font-size:22px;margin:0 0 4px;}
+.project-head .meta{font-size:12.5px;color:var(--muted);}
+.back-link{font-size:12.5px;color:var(--primary);cursor:pointer;margin-bottom:14px;display:inline-block;}
+.back-link:hover{text-decoration:underline;}
+
+.compliance-wrap{display:flex;align-items:center;gap:18px;}
+.donut{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.donut-inner{width:70px;height:70px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.donut-val{font-size:17px;font-weight:600;font-family:'Newsreader',serif;}
+.donut-lbl{font-size:9.5px;color:var(--muted);}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media (max-width: 900px){.grid-2{grid-template-columns:1fr;}}
+
+.empty{text-align:center;padding:50px 20px;color:var(--muted);}
+
+/* PDF report cover (offscreen, only used while rendering) */
+.pdf-report-header{background:var(--primary);color:#fff;padding:18px 22px;border-radius:10px 10px 0 0;}
+.pdf-report-header .co{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.85;}
+.pdf-report-header .ti{font-family:'Newsreader',serif;font-size:19px;font-weight:600;margin-top:4px;}
+.pdf-report-header .dt{font-size:11px;opacity:.85;margin-top:4px;}
+.pdf-kpi-table{width:100%;border-collapse:collapse;font-size:12px;}
+.pdf-kpi-table td{padding:7px 10px;border-bottom:1px solid #F0F1F3;}
+.pdf-kpi-table td.lbl{color:var(--muted);width:55%;}
+.pdf-kpi-table td.val{font-weight:600;text-align:right;}
+
+@media (max-width: 760px){
+  .app{flex-direction:column;}
+  .sidebar{width:100%;}
+  .content{padding:20px 16px 40px;}
+  .topbar{padding:14px 16px;}
+  .connect-box input[type=text]{width:140px;}
+}
+</style>
+</head>
+<body>
+
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-card">
+    <div class="lock-icon">🔒</div>
+    <p class="brand">SESUVECA DEL PERÚ SAC</p>
+    <p class="brand-sub">Ingresa la clave de acceso para ver el detalle de proyectos</p>
+    <input type="password" id="lockInput" placeholder="Clave de acceso" onkeydown="if(event.key==='Enter') checkAccess()">
+    <button class="btn btn-primary" onclick="checkAccess()">Ingresar</button>
+    <div class="lock-error" id="lockError"></div>
+  </div>
+</div>
+
+<div class="app" id="app" style="visibility:hidden;">
+  <aside class="sidebar">
+    <div class="sidebar-title">
+      <p class="brand">SESUVECA DEL PERÚ SAC</p>
+      <p class="brand-sub">Panel de gestión de proyectos</p>
+    </div>
+    <div class="sidebar-search"><input type="text" id="searchInput" placeholder="Buscar proyecto..."></div>
+    <div class="nav-portfolio active" id="navPortfolio" onclick="showPortfolio()">Vista general</div>
+    <div class="project-list" id="projectList"></div>
+    <div class="sidebar-foot" id="sidebarFoot">8 proyectos · datos de ejemplo</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="topTitle">Vista general del portafolio</h1>
+        <div class="sub" id="topSub">Datos de ejemplo — conecta tu Google Sheet para ver información real</div>
+      </div>
+      <div class="connect-box">
+        <span class="status-pill status-demo" id="statusPill">Modo demo</span>
+        <button class="btn btn-pdf" id="pdfBtn" onclick="handlePdfClick()">⬇ Descargar PDF</button>
+        <button class="icon-btn" id="refreshBtn" onclick="refreshData()" title="Actualizar datos ahora">↻</button>
+        <button class="icon-btn" id="gearBtn" onclick="toggleSettings()" title="Configuración de conexión">⚙</button>
+        <div class="settings-popover" id="settingsPopover" style="display:none;">
+          <div class="settings-row"><span>Estado</span><strong id="settingsStatusTxt">Modo demo</strong></div>
+          <div class="settings-row"><span>Hoja conectada</span><code id="settingsMaskedId">—</code></div>
+          <div class="settings-row"><span>Última sincronización</span><strong id="settingsSyncTxt">—</strong></div>
+          <label class="autoref"><input type="checkbox" id="autoRefreshToggle" checked onchange="setupAutoRefresh()"> Actualizar cada 5 min</label>
+          <hr>
+          <div class="settings-row-label">Conectar otra hoja (avanzado)</div>
+          <input type="text" id="sheetIdInput" placeholder="ID de Google Sheet">
+          <button class="btn btn-primary" style="width:100%;" onclick="connectSheet()">Conectar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="content" id="content"></div>
+  </main>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN — enlace permanente con Google Sheets
+   Si tu equipo ya tiene una hoja fija, pega aquí el ID una sola
+   vez y el dashboard se conectará solo cada vez que se abra,
+   sin que nadie tenga que volver a pegarlo.
+   También puedes abrir el archivo con ?sheet=TU_ID en la URL.
+   ============================================================ */
+const CONFIG = {
+  defaultSheetId: "1cT6P0M9Ix8E0zsJtGEOoo1NPEdFXa9HU",       // Google Sheet de Sesuveca del Perú SAC — enlace permanente
+  autoRefreshMinutes: 5,
+  sheetNames: { proyectos: "Proyectos", cronograma: "Cronograma", finanzas: "Finanzas", evidencias: "Evidencias" },
+  // Clave de acceso al detalle del dashboard, guardada como hash SHA-256 (nunca en texto plano).
+  // Clave por defecto: Sesuveca2026 — cámbiala generando un nuevo hash (instrucciones más abajo).
+  // Deja "" vacío para desactivar el candado de acceso.
+  accessCodeHash: "c26ac5f5bfd3cbb3b89019fb18ff61401dbcce92aa1253dc72738ef88f8b0ac6"
+};
+
+/* ============================================================
+   DATOS DE EJEMPLO (misma estructura que la plantilla de Sheets)
+   ============================================================ */
+const DEMO_PROYECTOS = [
+  ["P001","Ampliación de Planta","Rosa America","M. Alva","Infraestructura","En curso"],
+  ["P002","Migración ERP Financiero","Salaverry","J. Reyes","TI","En curso"],
+  ["P003","Lanzamiento Línea Orgánica","Rosa America","C. Salazar","Marketing","En curso"],
+  ["P004","Certificación ISO 9001","Salaverry","P. Torres","Calidad","En riesgo"],
+  ["P005","Apertura Tienda Chiclayo","Chiclayo","R. Vega","Expansión","En curso"],
+  ["P006","Automatización Almacén","Salaverry","L. Díaz","Operaciones","Completado"],
+  ["P007","Rediseño Web Corporativa","Rosa America","S. Núñez","Marketing","En curso"],
+  ["P008","Plan de Capacitación Anual","Rosa America","M. Alva","RRHH","Pausado"],
+];
+const DEMO_CRONOGRAMA = [
+  ["P001","Diseño de ingeniería","2026-01-05","2026-02-15","2026-01-05","2026-02-20",100],
+  ["P001","Obras civiles","2026-02-16","2026-05-30","2026-02-20",null,65],
+  ["P001","Instalación de equipos","2026-06-01","2026-07-15",null,null,0],
+  ["P002","Levantamiento de requerimientos","2026-02-01","2026-02-28","2026-02-01","2026-03-05",100],
+  ["P002","Configuración y parametrización","2026-03-01","2026-05-15","2026-03-06",null,55],
+  ["P002","Capacitación a usuarios","2026-05-16","2026-06-10",null,null,0],
+  ["P003","Formulación del producto","2026-01-10","2026-03-01","2026-01-10","2026-03-01",100],
+  ["P003","Empaque y registro sanitario","2026-03-02","2026-04-30","2026-03-04",null,80],
+  ["P003","Campaña de lanzamiento","2026-05-01","2026-06-15",null,null,10],
+  ["P004","Diagnóstico de brechas","2026-01-15","2026-02-28","2026-01-20","2026-03-10",100],
+  ["P004","Implementación de procesos","2026-03-01","2026-06-30","2026-03-15",null,30],
+  ["P005","Búsqueda y cierre de local","2026-02-01","2026-03-15","2026-02-05","2026-03-20",100],
+  ["P005","Remodelación del local","2026-03-16","2026-06-01","2026-03-22",null,40],
+  ["P005","Apertura y marketing local","2026-06-02","2026-06-30",null,null,0],
+  ["P006","Diseño del sistema automatizado","2025-10-01","2025-11-15","2025-10-01","2025-11-10",100],
+  ["P006","Instalación y pruebas","2025-11-16","2026-01-20","2025-11-12","2026-01-18",100],
+  ["P007","Investigación y wireframes","2026-04-01","2026-04-20","2026-04-01","2026-04-22",100],
+  ["P007","Desarrollo del sitio","2026-04-21","2026-06-30","2026-04-23",null,45],
+  ["P008","Diseño de malla de cursos","2026-01-10","2026-02-10",null,null,0],
+];
+const DEMO_FINANZAS = [
+  ["P001","Ingeniería y diseño","Enero",45000,47000],
+  ["P001","Obras civiles","Marzo",320000,210000],
+  ["P001","Equipamiento","Junio",180000,0],
+  ["P002","Licencias software","Febrero",60000,60000],
+  ["P002","Consultoría implementación","Abril",95000,70000],
+  ["P003","Desarrollo de producto","Enero",30000,31500],
+  ["P003","Registro sanitario","Marzo",8000,8200],
+  ["P003","Campaña de marketing","Mayo",50000,12000],
+  ["P004","Consultoría ISO","Enero",25000,26500],
+  ["P004","Auditoría de certificación","Junio",12000,0],
+  ["P005","Alquiler y garantía","Febrero",40000,40000],
+  ["P005","Remodelación","Marzo",90000,55000],
+  ["P006","Sistema automatizado","Octubre",150000,148000],
+  ["P007","Diseño UX/UI","Abril",18000,18500],
+  ["P007","Desarrollo web","Mayo",35000,20000],
+  ["P008","Materiales de capacitación","Enero",9000,0],
+];
+
+const DEMO_EVIDENCIAS = [
+  // ["P001","Avance de obras civiles","https://ejemplo.com/foto1.jpg","2026-03-20"],
+];
+
+let STATE = {source:"demo", proyectosRaw:[], cronograma:[], finanzas:[], evidencias:[], projects:[], current:null, sheetId:null, lastSync:null, localEvidence:{}};
+const TODAY = new Date();
+let autoRefreshTimer = null;
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function toDate(v){
+  if(!v) return null;
+  if(v instanceof Date) return v;
+  if(typeof v === "string" && v.startsWith("Date(")){
+    const m = v.match(/Date\((\d+),(\d+),(\d+)/);
+    if(m) return new Date(+m[1], +m[2], +m[3]);
+  }
+  const d = new Date(v);
+  return isNaN(d) ? null : d;
+}
+function minDate(arr){ const d = arr.map(toDate).filter(Boolean); return d.length? new Date(Math.min(...d)) : null; }
+function maxDate(arr){ const d = arr.map(toDate).filter(Boolean); return d.length? new Date(Math.max(...d)) : null; }
+function avgNum(arr){ const n = arr.map(Number).filter(v=>!isNaN(v)); return n.length? n.reduce((a,b)=>a+b,0)/n.length : 0; }
+function sumNum(arr){ return arr.map(Number).filter(v=>!isNaN(v)).reduce((a,b)=>a+b,0); }
+function fmtMoney(v){ return "S/ " + Math.round(v).toLocaleString("es-PE"); }
+function fmtDate(d){ return d ? d.toLocaleDateString("es-PE",{day:"2-digit",month:"short",year:"numeric"}) : "—"; }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function dateStamp(){ return new Date().toISOString().slice(0,10); }
+function slug(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"_"); }
+function maskId(id){
+  if(!id) return "—";
+  return id.length > 10 ? id.slice(0,4) + "••••••••" + id.slice(-4) : "••••••••";
+}
+
+/* ============================================================
+   CANDADO DE ACCESO
+   La clave nunca se guarda en texto plano: se compara un hash
+   SHA-256. Esto evita que alguien vea la clave con solo abrir
+   el código, pero al ser un archivo que corre en el navegador,
+   no reemplaza una autenticación real de servidor — para datos
+   muy sensibles, lo ideal es alojarlo detrás de un login
+   corporativo (intranet, Google Workspace, etc.).
+   ============================================================ */
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function checkAccess(){
+  const input = document.getElementById("lockInput");
+  const errEl = document.getElementById("lockError");
+  const hash = await sha256Hex(input.value);
+  if(hash === CONFIG.accessCodeHash){
+    unlockApp();
+  } else {
+    errEl.textContent = "Clave incorrecta. Intenta de nuevo.";
+    input.value = "";
+    input.focus();
+  }
+}
+function unlockApp(){
+  document.getElementById("lockOverlay").style.display = "none";
+  document.getElementById("app").style.visibility = "visible";
+}
+
+/* ============================================================
+   PANEL DE CONFIGURACIÓN DE CONEXIÓN
+   ============================================================ */
+function toggleSettings(){
+  const pop = document.getElementById("settingsPopover");
+  pop.style.display = pop.style.display === "none" ? "block" : "none";
+}
+document.addEventListener("click", function(e){
+  const box = document.querySelector(".connect-box");
+  const pop = document.getElementById("settingsPopover");
+  if(pop && pop.style.display === "block" && box && !box.contains(e.target)){
+    pop.style.display = "none";
+  }
+});
+
+function aggregateProjects(proyectosRaw, cronograma, finanzas, evidencias=[]){
+  return proyectosRaw.map(p=>{
+    const id = p[0];
+    const tasks = cronograma.filter(t=>t[0]===id);
+    const budget = finanzas.filter(f=>f[0]===id);
+    const evidenciasSheet = evidencias.filter(e=>e[0]===id && e[2]).map(e=>({desc:e[1]||"Evidencia", url:e[2], fecha:e[3]||null}));
+    const planStart = minDate(tasks.map(t=>t[2]));
+    const planEnd = maxDate(tasks.map(t=>t[3]));
+    const realStart = minDate(tasks.map(t=>t[4]));
+    const realEnd = maxDate(tasks.map(t=>t[5]));
+    const avance = tasks.length ? avgNum(tasks.map(t=>t[6])) : 0;
+    const proyectado = sumNum(budget.map(b=>b[3]));
+    const ejecutado = sumNum(budget.map(b=>b[4]));
+
+    let avancePlaneado = 0;
+    if(planStart && planEnd && planEnd > planStart){
+      avancePlaneado = clamp((TODAY - planStart) / (planEnd - planStart), 0, 1) * 100;
+    } else if(planStart && TODAY >= planStart){
+      avancePlaneado = 100;
+    }
+    const spi = avancePlaneado > 0 ? avance / avancePlaneado : (avance > 0 ? 1 : null);
+    const cpi = ejecutado > 0 ? (avance/100 * proyectado) / ejecutado : null;
+    const plannedDurationDays = (planStart && planEnd) ? (planEnd - planStart)/86400000 : 0;
+    const desviacionDias = (spi!==null) ? Math.round((spi - 1) * plannedDurationDays) : 0;
+    const desviacionPresupuesto = proyectado > 0 ? ((ejecutado - proyectado)/proyectado*100) : 0;
+
+    let cumplimiento = "en-tiempo";
+    const s = spi===null?1:spi, c = cpi===null?1:cpi;
+    if(s < 0.85 || c < 0.85) cumplimiento = "atrasado";
+    else if(s < 0.95 || c < 0.95) cumplimiento = "riesgo";
+
+    return {id, nombre:p[1], planta:p[2], responsable:p[3], categoria:p[4], estado:p[5],
+      planStart, planEnd, realStart, realEnd, avance, proyectado, ejecutado,
+      avancePlaneado, spi, cpi, desviacionDias, desviacionPresupuesto, cumplimiento,
+      tasks, budget, evidenciasSheet};
+  });
+}
+
+function statusClass(estado, cumplimiento){
+  if(estado === "Completado") return "completado";
+  if(estado === "Pausado") return "pausado";
+  if(cumplimiento === "atrasado") return "atrasado";
+  if(cumplimiento === "riesgo" || estado === "En riesgo") return "riesgo";
+  return "curso";
+}
+function statusLabel(cls){
+  return {curso:"En curso", riesgo:"En riesgo", atrasado:"Atrasado", completado:"Completado", pausado:"Pausado"}[cls];
+}
+
+/* ============================================================
+   CARGA DE DATOS — Google Sheets (gviz) o demo
+   ============================================================ */
+async function fetchSheetRange(sheetId, sheetName, range){
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&range=${range}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("No se pudo leer la hoja '" + sheetName + "'");
+  const text = await res.text();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if(start === -1 || end === -1) throw new Error("Respuesta inesperada de Google Sheets para '" + sheetName + "'");
+  const json = JSON.parse(text.substring(start, end+1));
+  const rows = (json.table.rows || []).map(r => (r.c||[]).map(c => c ? c.v : null))
+    .filter(row => row.some(v => v !== null && v !== ""));
+  return rows;
+}
+
+async function loadLive(sheetId){
+  const N = CONFIG.sheetNames;
+  const [proyectosRaw, cronograma, finanzas] = await Promise.all([
+    fetchSheetRange(sheetId, N.proyectos, "A5:F200"),
+    fetchSheetRange(sheetId, N.cronograma, "A5:G500"),
+    fetchSheetRange(sheetId, N.finanzas, "A5:E500"),
+  ]);
+  if(!proyectosRaw.length) throw new Error("La hoja 'Proyectos' no tiene datos en el rango esperado (A5:E200).");
+  // La pestaña 'Evidencias' es opcional: si todavía no existe en la hoja, no bloquea la carga.
+  let evidencias = [];
+  try{ evidencias = await fetchSheetRange(sheetId, N.evidencias, "A5:D500"); }
+  catch(e){ console.warn("Pestaña 'Evidencias' no encontrada todavía — se omite.", e); }
+  return {proyectosRaw, cronograma, finanzas, evidencias};
+}
+
+function loadDemo(){
+  return {proyectosRaw: DEMO_PROYECTOS, cronograma: DEMO_CRONOGRAMA, finanzas: DEMO_FINANZAS, evidencias: DEMO_EVIDENCIAS};
+}
+
+async function connectSheet(){
+  const id = document.getElementById("sheetIdInput").value.trim();
+  if(!id){ alert("Pega el ID de tu Google Sheet (lo encuentras en la URL, entre /d/ y /edit)."); return; }
+  STATE.sheetId = id;
+  await refreshData();
+}
+
+async function refreshData(){
+  const pill = document.getElementById("statusPill");
+  const btn = document.getElementById("refreshBtn");
+  btn.textContent = "…";
+  try{
+    let raw;
+    if(STATE.sheetId){
+      raw = await loadLive(STATE.sheetId);
+      STATE.source = "live";
+    } else {
+      raw = loadDemo();
+      STATE.source = "demo";
+    }
+    STATE.proyectosRaw = raw.proyectosRaw;
+    STATE.cronograma = raw.cronograma;
+    STATE.finanzas = raw.finanzas;
+    STATE.evidencias = raw.evidencias || [];
+    STATE.projects = aggregateProjects(raw.proyectosRaw, raw.cronograma, raw.finanzas, STATE.evidencias);
+    STATE.lastSync = new Date();
+    updateStatusPill(STATE.source);
+    renderSidebar();
+    if(STATE.current && STATE.projects.find(p=>p.id===STATE.current)){
+      showProject(STATE.current);
+    } else {
+      showPortfolio();
+    }
+    setupAutoRefresh();
+  } catch(err){
+    pill.textContent = "Error de conexión";
+    pill.className = "status-pill status-error";
+    console.error(err);
+    if(window.location.protocol === "file:"){
+      alert("No se pudo conectar porque el archivo se abrió directamente desde el disco (file://).\n\nLos navegadores bloquean las peticiones a internet en ese modo por seguridad.\n\nSolución: sube este archivo .html a un hosting simple (por ejemplo, arrástralo a https://app.netlify.com/drop) y ábrelo desde ese link en vez de abrirlo con doble clic.\n\nMientras tanto se mantiene el modo demo.");
+    } else {
+      alert("No se pudo leer la hoja. Verifica que:\n– el ID sea correcto\n– la hoja esté compartida como 'Cualquier persona con el enlace: Lector'\n– las pestañas se llamen exactamente 'Proyectos', 'Cronograma' y 'Finanzas'\n– los datos empiecen en la fila 5, como en la plantilla\n\nDetalle: " + err.message + "\n\nSe mantiene el modo demo mientras tanto.");
+    }
+  } finally {
+    btn.textContent = "↻";
+  }
+}
+
+function setupAutoRefresh(){
+  if(autoRefreshTimer){ clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  const enabled = document.getElementById("autoRefreshToggle").checked;
+  if(STATE.source === "live" && enabled){
+    autoRefreshTimer = setInterval(refreshData, CONFIG.autoRefreshMinutes * 60 * 1000);
+  }
+}
+
+function updateStatusPill(source){
+  const pill = document.getElementById("statusPill");
+  const foot = document.getElementById("sidebarFoot");
+  const sub = document.getElementById("topSub");
+  const syncTxt = STATE.lastSync ? STATE.lastSync.toLocaleTimeString("es-PE") : "—";
+  if(source === "live"){
+    pill.textContent = "Conectado";
+    pill.className = "status-pill status-live";
+    sub.textContent = "Datos en vivo desde Google Sheets · última sincronización " + syncTxt;
+    foot.textContent = STATE.projects.length + " proyectos · hoja conectada";
+  } else {
+    pill.textContent = "Modo demo";
+    pill.className = "status-pill status-demo";
+    sub.textContent = "Datos de ejemplo — conecta tu Google Sheet para ver información real";
+    foot.textContent = STATE.projects.length + " proyectos · datos de ejemplo";
+  }
+  document.getElementById("settingsStatusTxt").textContent = source === "live" ? "Conectado" : "Modo demo";
+  document.getElementById("settingsMaskedId").textContent = maskId(STATE.sheetId);
+  document.getElementById("settingsSyncTxt").textContent = syncTxt;
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+function renderSidebar(filter=""){
+  const list = document.getElementById("projectList");
+  const f = filter.toLowerCase();
+  list.innerHTML = STATE.projects
+    .filter(p => p.nombre.toLowerCase().includes(f) || p.id.toLowerCase().includes(f) || (p.planta||"").toLowerCase().includes(f))
+    .map(p=>{
+      const cls = statusClass(p.estado, p.cumplimiento);
+      const active = STATE.current === p.id ? "active" : "";
+      return `<div class="project-item ${active}" onclick="showProject('${p.id}')">
+        <span class="dot dot-${cls}"></span>
+        <div class="pi-text">
+          <div class="pi-name">${p.nombre}</div>
+          <div class="pi-meta">${p.planta || p.categoria} · ${Math.round(p.avance)}%</div>
+        </div>
+      </div>`;
+    }).join("");
+}
+document.getElementById("searchInput").addEventListener("input", e=>renderSidebar(e.target.value));
+
+/* ============================================================
+   GANTT (genérico)
+   ============================================================ */
+function renderGantt(rows){
+  const allDates = [];
+  rows.forEach(r=>{ [r.planStart,r.planEnd,r.realStart,r.realEnd].forEach(d=>{ if(d) allDates.push(d); }); });
+  if(!allDates.length) return `<div class="empty">Sin fechas registradas todavía.</div>`;
+  let min = new Date(Math.min(...allDates));
+  let max = new Date(Math.max(...allDates, TODAY));
+  min.setDate(1);
+  max.setMonth(max.getMonth()+1, 1);
+  const span = max - min;
+  const pct = d => ((d - min) / span) * 100;
+
+  const months = [];
+  let cursor = new Date(min);
+  while(cursor < max){
+    months.push({label: cursor.toLocaleDateString("es-PE",{month:"short",year:"2-digit"}), pos: pct(cursor)});
+    cursor.setMonth(cursor.getMonth()+1);
+  }
+
+  const todayPct = pct(TODAY);
+  const rowsHtml = rows.map(r=>{
+    const planLeft = r.planStart ? pct(r.planStart) : null;
+    const planWidth = (r.planStart && r.planEnd) ? Math.max(pct(r.planEnd)-planLeft, 0.6) : 0;
+    const realEndUse = r.realEnd || (r.realStart ? TODAY : null);
+    const realLeft = r.realStart ? pct(r.realStart) : null;
+    const realWidth = (r.realStart && realEndUse) ? Math.max(pct(realEndUse)-realLeft, 0.6) : 0;
+    return `<div class="gantt-row">
+      <div class="gantt-label" title="${r.label}" onclick="${r.onClick||''}">${r.label}</div>
+      <div class="gantt-track">
+        ${planLeft!==null ? `<div class="gantt-bar plan" style="left:${planLeft}%;width:${planWidth}%"></div>` : ""}
+        ${realLeft!==null ? `<div class="gantt-bar real" style="left:${realLeft}%;width:${realWidth}%"></div>` : ""}
+        ${(todayPct>=0 && todayPct<=100) ? `<div class="gantt-today" style="left:${todayPct}%"></div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+
+  const scaleHtml = months.map(m=>`<span style="left:${m.pos}%">${m.label}</span>`).join("");
+
+  return `<div class="gantt">
+    <div class="gantt-scale">${scaleHtml}</div>
+    ${rowsHtml}
+    <div class="gantt-legend">
+      <span><span class="leg-dot" style="background:#9FC0DA"></span>Planeado</span>
+      <span><span class="leg-dot" style="background:var(--executed)"></span>Ejecutado</span>
+      <span><span class="leg-dot" style="background:var(--red);width:2px;height:12px;border-radius:0"></span>Hoy</span>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   KPIs (compartidos entre pantalla y PDF)
+   ============================================================ */
+function getPortfolioKPIs(){
+  const P = STATE.projects;
+  const activos = P.filter(p=>p.estado==="En curso" || p.estado==="En riesgo");
+  const avanceProm = avgNum(P.map(p=>p.avance));
+  const proyectadoTotal = sumNum(P.map(p=>p.proyectado));
+  const ejecutadoTotal = sumNum(P.map(p=>p.ejecutado));
+  const ejecFinanciera = proyectadoTotal ? (ejecutadoTotal/proyectadoTotal*100) : 0;
+  const enRiesgo = P.filter(p=>p.cumplimiento==="riesgo" || p.cumplimiento==="atrasado");
+  const spiProm = avgNum(P.filter(p=>p.spi!==null).map(p=>p.spi));
+  const cpiProm = avgNum(P.filter(p=>p.cpi!==null).map(p=>p.cpi));
+  return {
+    activos, avanceProm, proyectadoTotal, ejecutadoTotal, ejecFinanciera, enRiesgo, spiProm, cpiProm,
+    list: [
+      {label:"Proyectos activos", value: activos.length + " de " + P.length},
+      {label:"Avance físico promedio", value: avanceProm.toFixed(0)+"%"},
+      {label:"Ejecución financiera", value: ejecFinanciera.toFixed(0)+"% (" + fmtMoney(ejecutadoTotal) + " de " + fmtMoney(proyectadoTotal) + ")"},
+      {label:"Proyectos en riesgo / atrasados", value: enRiesgo.length + " (" + (P.length? Math.round(enRiesgo.length/P.length*100):0) + "%)"},
+      {label:"SPI promedio (cronograma)", value: spiProm.toFixed(2)},
+      {label:"CPI promedio (costo)", value: cpiProm.toFixed(2)},
+    ]
+  };
+}
+function getProjectKPIList(p){
+  const cls = statusClass(p.estado, p.cumplimiento);
+  return [
+    {label:"Planta", value: p.planta || "—"},
+    {label:"Estado", value: statusLabel(cls)},
+    {label:"Responsable", value: p.responsable},
+    {label:"Avance físico real / planeado", value: p.avance.toFixed(0)+"% / "+p.avancePlaneado.toFixed(0)+"%"},
+    {label:"SPI (cronograma)", value: p.spi===null?"N/D":p.spi.toFixed(2)},
+    {label:"CPI (costo)", value: p.cpi===null?"N/D":p.cpi.toFixed(2)},
+    {label:"Desviación de cronograma", value: (p.desviacionDias>=0?"+":"")+p.desviacionDias+" días"},
+    {label:"Desviación de presupuesto", value: (p.desviacionPresupuesto>=0?"+":"")+p.desviacionPresupuesto.toFixed(0)+"%"},
+    {label:"Presupuesto ejecutado / proyectado", value: fmtMoney(p.ejecutado)+" / "+fmtMoney(p.proyectado)},
+  ];
+}
+
+/* ============================================================
+   VISTA GENERAL DEL PORTAFOLIO
+   ============================================================ */
+let chartBudgetPortfolio = null;
+
+function showPortfolio(){
+  STATE.current = null;
+  document.getElementById("navPortfolio").classList.add("active");
+  document.getElementById("topTitle").textContent = "Vista general del portafolio";
+  updateStatusPill(STATE.source);
+  renderSidebar(document.getElementById("searchInput").value);
+
+  const P = STATE.projects;
+  const K = getPortfolioKPIs();
+
+  const content = document.getElementById("content");
+  content.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Proyectos activos</div><div class="kpi-value">${K.activos.length}</div><div class="kpi-note">de ${P.length} en el portafolio</div></div>
+      <div class="kpi-card"><div class="kpi-label">Avance físico promedio</div><div class="kpi-value">${K.avanceProm.toFixed(0)}%</div><div class="kpi-note">todos los proyectos</div></div>
+      <div class="kpi-card"><div class="kpi-label">Ejecución financiera</div><div class="kpi-value">${K.ejecFinanciera.toFixed(0)}%</div><div class="kpi-note">${fmtMoney(K.ejecutadoTotal)} de ${fmtMoney(K.proyectadoTotal)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Proyectos en riesgo</div><div class="kpi-value ${K.enRiesgo.length?'c-amber':''}">${K.enRiesgo.length}</div><div class="kpi-note">${P.length? Math.round(K.enRiesgo.length/P.length*100):0}% del portafolio</div></div>
+      <div class="kpi-card"><div class="kpi-label">SPI promedio</div><div class="kpi-value ${K.spiProm<0.95?'c-amber':''}">${K.spiProm.toFixed(2)}</div><div class="kpi-note">desempeño de cronograma</div></div>
+      <div class="kpi-card"><div class="kpi-label">CPI promedio</div><div class="kpi-value ${K.cpiProm<0.95?'c-amber':''}">${K.cpiProm.toFixed(2)}</div><div class="kpi-note">desempeño de costo</div></div>
+    </div>
+
+    <div class="section" id="portfolioGanttSection">
+      <div class="section-title">Cronograma general — planeado vs. ejecutado</div>
+      <div class="panel">${renderGantt(P.map(p=>({label:p.nombre, planStart:p.planStart, planEnd:p.planEnd, realStart:p.realStart, realEnd:p.realEnd, onClick:`showProject('${p.id}')`})))}</div>
+    </div>
+
+    <div class="grid-2 section" id="portfolioChartsSection">
+      <div>
+        <div class="section-title">Presupuesto por proyecto</div>
+        <div class="panel"><div style="position:relative;height:${Math.max(P.length*36+60,160)}px;"><canvas id="portfolioBudgetChart" role="img" aria-label="Presupuesto proyectado vs ejecutado por proyecto"></canvas></div></div>
+      </div>
+      <div>
+        <div class="section-title">Distribución del cumplimiento</div>
+        <div class="panel"><div style="position:relative;height:220px;"><canvas id="portfolioComplianceChart" role="img" aria-label="Cantidad de proyectos por estado de cumplimiento"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="section" id="portfolioTableSection">
+      <div class="section-title">Lista de proyectos</div>
+      <div class="panel" style="padding:8px 22px 16px;overflow-x:auto;">
+        <table class="projects">
+          <thead><tr>
+            <th>Proyecto</th><th>Planta</th><th>Responsable</th><th>Estado</th><th>Avance</th>
+            <th>Fin planeado</th><th>Presupuesto</th><th>Ejecutado</th><th>Cumplimiento</th>
+          </tr></thead>
+          <tbody>
+            ${P.map(p=>{
+              const cls = statusClass(p.estado, p.cumplimiento);
+              return `<tr class="rowlink" onclick="showProject('${p.id}')">
+                <td><strong>${p.nombre}</strong><div style="color:var(--muted);font-size:11.5px">${p.categoria}</div></td>
+                <td>${p.planta || "—"}</td>
+                <td>${p.responsable}</td>
+                <td><span class="badge badge-${cls}">${p.estado}</span></td>
+                <td><span class="bar-mini"><span class="bar-mini-fill" style="width:${clamp(p.avance,0,100)}%"></span></span>${p.avance.toFixed(0)}%</td>
+                <td>${fmtDate(p.planEnd)}</td>
+                <td>${fmtMoney(p.proyectado)}</td>
+                <td>${fmtMoney(p.ejecutado)}</td>
+                <td><span class="badge badge-${cls}">${statusLabel(cls)}</span></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  if(chartBudgetPortfolio) chartBudgetPortfolio.destroy();
+  chartBudgetPortfolio = new Chart(document.getElementById("portfolioBudgetChart"), {
+    type: "bar",
+    data: {
+      labels: P.map(p=>p.nombre),
+      datasets: [
+        {label:"Proyectado", data:P.map(p=>p.proyectado), backgroundColor:"#1B4D7A", borderRadius:3, maxBarThickness:14},
+        {label:"Ejecutado", data:P.map(p=>p.ejecutado), backgroundColor:"#3C6E71", borderRadius:3, maxBarThickness:14},
+      ]
+    },
+    options: {
+      indexAxis: "y", responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:"top", labels:{boxWidth:10, font:{size:11}}}},
+      scales:{x:{ticks:{callback:v=>"S/ "+(v/1000).toFixed(0)+"k", font:{size:10.5}}, grid:{color:"#EEEFF1"}}, y:{ticks:{font:{size:11}}, grid:{display:false}}}
+    }
+  });
+
+  const compCounts = {curso:0, riesgo:0, atrasado:0, completado:0, pausado:0};
+  P.forEach(p=>compCounts[statusClass(p.estado,p.cumplimiento)]++);
+  if(window.chartCompliancePortfolio) window.chartCompliancePortfolio.destroy();
+  window.chartCompliancePortfolio = new Chart(document.getElementById("portfolioComplianceChart"), {
+    type:"doughnut",
+    data:{
+      labels:["En curso","En riesgo","Atrasado","Completado","Pausado"],
+      datasets:[{data:[compCounts.curso,compCounts.riesgo,compCounts.atrasado,compCounts.completado,compCounts.pausado],
+        backgroundColor:["#4E85B8","#D69A45","#A83232","#3C6E71","#8A9096"], borderWidth:0}]
+    },
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"right", labels:{boxWidth:10, font:{size:11}, padding:12}}}}
+  });
+}
+
+/* ============================================================
+   EVIDENCIA FOTOGRÁFICA POR PROYECTO
+   ============================================================ */
+function renderEvidenceGrid(p){
+  const local = STATE.localEvidence[p.id] || [];
+  const sheetItems = p.evidenciasSheet || [];
+  const sheetTiles = sheetItems.map((e,i)=>`
+    <div class="evidence-tile" onclick="openLightbox('${e.url.replace(/'/g,"%27")}')" title="${e.desc}">
+      <img src="${e.url}" alt="${e.desc}" loading="lazy" onerror="this.parentElement.style.display='none'">
+      <span class="tag">Sheet · ${e.desc.length>16? e.desc.slice(0,16)+'…' : e.desc}</span>
+    </div>`).join("");
+  const localTiles = local.map((e,i)=>`
+    <div class="evidence-tile" onclick="openLightbox('${e.dataUrl}')" title="${e.name}">
+      <img src="${e.dataUrl}" alt="${e.name}">
+      <span class="tag">Esta sesión</span>
+      <button class="remove" onclick="event.stopPropagation(); removeLocalEvidence('${p.id}', ${i})" title="Quitar">✕</button>
+    </div>`).join("");
+  const addTile = `
+    <button class="evidence-add" onclick="document.getElementById('evidenceFileInput').click()">
+      <span class="plus">＋</span>
+      <span>Agregar foto</span>
+    </button>
+    <input type="file" id="evidenceFileInput" accept="image/*" multiple style="display:none" onchange="handleEvidenceFiles('${p.id}', this.files)">`;
+  return `<div class="evidence-grid">${sheetTiles}${localTiles}${addTile}</div>`;
+}
+
+function handleEvidenceFiles(projectId, fileList){
+  if(!fileList || !fileList.length) return;
+  if(!STATE.localEvidence[projectId]) STATE.localEvidence[projectId] = [];
+  const files = Array.from(fileList);
+  let pending = files.length;
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      STATE.localEvidence[projectId].push({name:file.name, dataUrl:e.target.result});
+      pending--;
+      if(pending===0 && STATE.current===projectId) showProject(projectId);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function removeLocalEvidence(projectId, index){
+  if(STATE.localEvidence[projectId]) STATE.localEvidence[projectId].splice(index,1);
+  showProject(projectId);
+}
+
+function openLightbox(url){
+  const box = document.createElement("div");
+  box.className = "lightbox";
+  box.onclick = ()=>box.remove();
+  box.innerHTML = `<img src="${url}">`;
+  document.body.appendChild(box);
+}
+
+
+let chartBudgetProject = null;
+
+function showProject(id){
+  STATE.current = id;
+  document.getElementById("navPortfolio").classList.remove("active");
+  renderSidebar(document.getElementById("searchInput").value);
+  const p = STATE.projects.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById("topTitle").textContent = p.nombre;
+  document.getElementById("topSub").textContent = p.categoria + " · Responsable: " + p.responsable;
+
+  const cls = statusClass(p.estado, p.cumplimiento);
+  const spiTxt = p.spi===null ? "N/D" : p.spi.toFixed(2);
+  const cpiTxt = p.cpi===null ? "N/D" : p.cpi.toFixed(2);
+  const desvDiasTxt = (p.desviacionDias>=0? "+":"") + p.desviacionDias + " días";
+  const desvPresTxt = (p.desviacionPresupuesto>=0? "+":"") + p.desviacionPresupuesto.toFixed(0) + "%";
+
+  const avanceReal = clamp(p.avance,0,100);
+  const avancePlan = clamp(p.avancePlaneado,0,100);
+  const donutColor = cls==="atrasado" ? "#A83232" : cls==="riesgo" ? "#C1791F" : "#3C6E71";
+
+  const content = document.getElementById("content");
+  content.innerHTML = `
+    <div class="back-link" onclick="showPortfolio()">← Volver a la vista general</div>
+    <div class="project-head">
+      <div>
+        <h2>${p.nombre}</h2>
+        <div class="meta">${p.planta ? p.planta + " · " : ""}${fmtDate(p.planStart)} — ${fmtDate(p.planEnd)} · ID ${p.id}</div>
+      </div>
+      <span class="badge badge-${cls}" style="font-size:12.5px;padding:6px 14px;">${statusLabel(cls)}</span>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Avance físico real</div><div class="kpi-value">${avanceReal.toFixed(0)}%</div><div class="kpi-note">vs. ${avancePlan.toFixed(0)}% planeado a la fecha</div></div>
+      <div class="kpi-card"><div class="kpi-label">SPI (cronograma)</div><div class="kpi-value ${p.spi!==null&&p.spi<0.95?'c-amber':''}">${spiTxt}</div><div class="kpi-note">1.00 = en tiempo</div></div>
+      <div class="kpi-card"><div class="kpi-label">CPI (costo)</div><div class="kpi-value ${p.cpi!==null&&p.cpi<0.95?'c-amber':''}">${cpiTxt}</div><div class="kpi-note">1.00 = en presupuesto</div></div>
+      <div class="kpi-card"><div class="kpi-label">Desviación de cronograma</div><div class="kpi-value ${p.desviacionDias<0?'c-red':''}">${desvDiasTxt}</div><div class="kpi-note">vs. fecha planeada</div></div>
+      <div class="kpi-card"><div class="kpi-label">Desviación de presupuesto</div><div class="kpi-value ${p.desviacionPresupuesto>10?'c-red':''}">${desvPresTxt}</div><div class="kpi-note">${fmtMoney(p.ejecutado)} de ${fmtMoney(p.proyectado)}</div></div>
+    </div>
+
+    <div class="grid-2 section" id="projectComplianceSection">
+      <div>
+        <div class="section-title">Indicador de cumplimiento</div>
+        <div class="panel compliance-wrap">
+          <div class="donut" style="background:conic-gradient(${donutColor} ${avanceReal*3.6}deg, #E7E8EA 0deg)">
+            <div class="donut-inner"><div class="donut-val">${avanceReal.toFixed(0)}%</div><div class="donut-lbl">avance real</div></div>
+          </div>
+          <div style="font-size:12.5px;color:var(--muted);line-height:1.6;">
+            Avance planeado a hoy: <strong style="color:var(--text)">${avancePlan.toFixed(0)}%</strong><br>
+            Estado: <strong style="color:${donutColor}">${statusLabel(cls)}</strong><br>
+            ${cls==="atrasado" ? "Requiere atención inmediata en cronograma y/o costo." : cls==="riesgo" ? "Seguimiento cercano recomendado." : "El proyecto avanza según lo planificado."}
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section-title">Presupuesto por partida</div>
+        <div class="panel"><div style="position:relative;height:${Math.max(p.budget.length*34+50,140)}px;"><canvas id="projectBudgetChart" role="img" aria-label="Presupuesto proyectado vs ejecutado por partida"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="section" id="projectEvidenceSection">
+      <div class="section-title">Evidencia fotográfica de los trabajos</div>
+      <div class="panel">
+        ${renderEvidenceGrid(p)}
+        <div class="evidence-empty-note">
+          Lo que subas con "Agregar foto" solo se guarda en tu navegador durante esta sesión (sirve para incluirlo ya mismo en el PDF). Para que quede visible de forma permanente para todo el equipo, sube la foto a Google Drive, copia su enlace para compartir y pégalo en la hoja <strong>Evidencias</strong> junto al ID de este proyecto (<strong>${p.id}</strong>).
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="projectGanttSection">
+      <div class="section-title">Cronograma de tareas — planeado vs. ejecutado</div>
+      <div class="panel">${renderGantt(p.tasks.map(t=>({label:t[1], planStart:toDate(t[2]), planEnd:toDate(t[3]), realStart:toDate(t[4]), realEnd:toDate(t[5])})))}</div>
+    </div>
+  `;
+
+  if(chartBudgetProject) chartBudgetProject.destroy();
+  if(p.budget.length){
+    chartBudgetProject = new Chart(document.getElementById("projectBudgetChart"), {
+      type:"bar",
+      data:{
+        labels:p.budget.map(b=>b[1]),
+        datasets:[
+          {label:"Proyectado", data:p.budget.map(b=>Number(b[3])||0), backgroundColor:"#1B4D7A", borderRadius:3, maxBarThickness:16},
+          {label:"Ejecutado", data:p.budget.map(b=>Number(b[4])||0), backgroundColor:"#3C6E71", borderRadius:3, maxBarThickness:16},
+        ]
+      },
+      options:{
+        indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:"top", labels:{boxWidth:10, font:{size:11}}}},
+        scales:{x:{ticks:{callback:v=>"S/ "+(v/1000).toFixed(0)+"k", font:{size:10.5}}, grid:{color:"#EEEFF1"}}, y:{ticks:{font:{size:11}}, grid:{display:false}}}
+      }
+    });
+  }
+}
+
+/* ============================================================
+   GENERACIÓN DE REPORTE PDF (general o individual)
+   ============================================================ */
+function handlePdfClick(){
+  generatePDF(STATE.current ? "project" : "portfolio");
+}
+
+async function generatePDF(scope){
+  const btn = document.getElementById("pdfBtn");
+  const original = btn.innerHTML;
+  btn.innerHTML = "Generando…";
+  btn.disabled = true;
+  document.body.classList.add("pdf-capture-mode");
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:"pt", format:"a4"});
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    let y = 0;
+
+    const project = scope === "project" ? STATE.projects.find(p=>p.id===STATE.current) : null;
+    const title = scope === "portfolio"
+      ? "Reporte general del portafolio de proyectos"
+      : "Reporte de proyecto — " + project.nombre;
+    const kpiList = scope === "portfolio" ? getPortfolioKPIs().list : getProjectKPIList(project);
+
+    // ---- encabezado ----
+    doc.setFillColor(27,77,122);
+    doc.rect(0,0,pageW,74,"F");
+    doc.setTextColor(255,255,255);
+    doc.setFont("helvetica","bold"); doc.setFontSize(15);
+    doc.text("SESUVECA DEL PERÚ SAC", margin, 30);
+    doc.setFont("helvetica","normal"); doc.setFontSize(11);
+    doc.text(title, margin, 48);
+    doc.setFontSize(9);
+    doc.text("Generado el " + new Date().toLocaleString("es-PE") + (STATE.source==="live" ? "  ·  fuente: Google Sheets" : "  ·  fuente: datos de ejemplo"), margin, 63);
+    y = 96;
+    doc.setTextColor(30,34,38);
+
+    // ---- tabla de indicadores (texto, nítido) ----
+    doc.setFont("helvetica","bold"); doc.setFontSize(12);
+    doc.text("Indicadores clave", margin, y); y += 8;
+    doc.setDrawColor(220,222,225);
+    y += 8;
+    doc.setFontSize(9.5);
+    kpiList.forEach((k, i)=>{
+      if(i%2===0){ doc.setFillColor(247,248,249); doc.rect(margin, y-11, pageW-margin*2, 18, "F"); }
+      doc.setFont("helvetica","normal"); doc.setTextColor(90,97,104);
+      doc.text(k.label, margin+6, y);
+      doc.setFont("helvetica","bold"); doc.setTextColor(30,34,38);
+      doc.text(String(k.value), pageW-margin-6, y, {align:"right"});
+      y += 18;
+    });
+    y += 18;
+
+    // ---- secciones visuales capturadas como imagen ----
+    const sectionIds = scope === "portfolio"
+      ? ["portfolioGanttSection","portfolioChartsSection","portfolioTableSection"]
+      : ["projectComplianceSection","projectEvidenceSection","projectGanttSection"];
+
+    for(const id of sectionIds){
+      const el = document.getElementById(id);
+      if(!el) continue;
+      const canvas = await html2canvas(el, {scale:2, backgroundColor:"#ffffff", useCORS:true});
+      const imgData = canvas.toDataURL("image/png");
+      const imgW = pageW - margin*2;
+      const imgH = canvas.height * imgW / canvas.width;
+      if(y + Math.min(imgH,pageH) > pageH - margin){ doc.addPage(); y = margin; }
+      // si la imagen es más alta que una página, se escala para que quepa
+      let drawW = imgW, drawH = imgH;
+      if(drawH > pageH - margin*2){
+        drawH = pageH - margin*2;
+        drawW = canvas.width * drawH / canvas.height;
+      }
+      doc.addImage(imgData, "PNG", margin, y, drawW, drawH);
+      y += drawH + 18;
+    }
+
+    // ---- pie de página ----
+    const pages = doc.internal.getNumberOfPages();
+    for(let i=1;i<=pages;i++){
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(140,145,150);
+      doc.text("Sesuveca del Perú SAC · Dashboard de gestión de proyectos · página " + i + " de " + pages, margin, pageH-18);
+    }
+
+    const filename = scope === "portfolio"
+      ? `Reporte_Portafolio_Sesuveca_${dateStamp()}.pdf`
+      : `Reporte_${slug(project.nombre)}_${dateStamp()}.pdf`;
+    doc.save(filename);
+  } catch(err){
+    console.error(err);
+    alert("No se pudo generar el PDF. Intenta nuevamente.");
+  } finally {
+    document.body.classList.remove("pdf-capture-mode");
+    btn.innerHTML = original;
+    btn.disabled = false;
+  }
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+(function init(){
+  if(!CONFIG.accessCodeHash){ unlockApp(); }
+  else { setTimeout(()=>document.getElementById("lockInput").focus(), 200); }
+
+  const raw = loadDemo();
+  STATE.proyectosRaw = raw.proyectosRaw;
+  STATE.cronograma = raw.cronograma;
+  STATE.finanzas = raw.finanzas;
+  STATE.evidencias = raw.evidencias || [];
+  STATE.projects = aggregateProjects(raw.proyectosRaw, raw.cronograma, raw.finanzas, STATE.evidencias);
+  renderSidebar();
+  showPortfolio();
+
+  // enlace automático: parámetro ?sheet=ID en la URL, o CONFIG.defaultSheetId
+  // (no se muestra en ningún campo de texto — solo queda en memoria del navegador)
+  const urlParams = new URLSearchParams(window.location.search);
+  const autoId = urlParams.get("sheet") || CONFIG.defaultSheetId;
+  if(autoId){
+    STATE.sheetId = autoId;
+    refreshData();
+  }
+})();
+</script>
+</body>
+</html>
