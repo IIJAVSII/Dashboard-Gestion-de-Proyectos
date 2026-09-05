@@ -66,8 +66,27 @@ h1,h2,h3,.num-font{font-family:'Newsreader',serif;}
 .topbar{background:var(--card);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
 .topbar h1{font-size:20px;font-weight:600;margin:0;}
 .topbar .sub{font-size:12px;color:var(--muted);margin-top:2px;}
-.connect-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.connect-box{display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative;}
 .connect-box input[type=text]{padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;width:210px;color:var(--text);}
+.icon-btn{width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{border-color:var(--primary);color:var(--primary);}
+.settings-popover{position:absolute;top:44px;right:0;width:260px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(20,25,30,0.16);padding:16px;z-index:40;}
+.settings-popover hr{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.settings-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:8px;color:var(--muted);}
+.settings-row strong{color:var(--text);font-weight:600;}
+.settings-row code{background:#F1F2F4;padding:2px 6px;border-radius:4px;font-size:11px;color:var(--text);letter-spacing:.02em;}
+.settings-row-label{font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+.settings-popover input[type=text]{width:100%;margin-bottom:8px;}
+
+/* ---------- candado de acceso ---------- */
+.lock-overlay{position:fixed;inset:0;background:linear-gradient(160deg,#1E2226 0%,#123655 100%);display:flex;align-items:center;justify-content:center;z-index:999;}
+.lock-card{background:var(--card);border-radius:14px;padding:36px 34px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.35);text-align:center;}
+.lock-card .brand{font-family:'Newsreader',serif;font-size:19px;font-weight:600;color:var(--ink);margin:0 0 2px;}
+.lock-card .brand-sub{font-size:12px;color:var(--muted);margin-bottom:22px;}
+.lock-card input[type=password]{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;text-align:center;letter-spacing:.15em;margin-bottom:12px;}
+.lock-card .btn-primary{width:100%;padding:10px;font-size:13px;}
+.lock-card .lock-error{font-size:12px;color:var(--red);margin-top:10px;min-height:16px;}
+.lock-icon{width:44px;height:44px;border-radius:50%;background:var(--paper);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:19px;}
 .btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;}
 .btn:hover{border-color:var(--primary);color:var(--primary);}
 .btn:disabled{opacity:.55;cursor:default;}
@@ -168,7 +187,18 @@ table.projects tr.rowlink:hover{background:#F7F8F9;}
 </head>
 <body>
 
-<div class="app">
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-card">
+    <div class="lock-icon">🔒</div>
+    <p class="brand">SESUVECA DEL PERÚ SAC</p>
+    <p class="brand-sub">Ingresa la clave de acceso para ver el detalle de proyectos</p>
+    <input type="password" id="lockInput" placeholder="Clave de acceso" onkeydown="if(event.key==='Enter') checkAccess()">
+    <button class="btn btn-primary" onclick="checkAccess()">Ingresar</button>
+    <div class="lock-error" id="lockError"></div>
+  </div>
+</div>
+
+<div class="app" id="app" style="visibility:hidden;">
   <aside class="sidebar">
     <div class="sidebar-title">
       <p class="brand">SESUVECA DEL PERÚ SAC</p>
@@ -188,11 +218,19 @@ table.projects tr.rowlink:hover{background:#F7F8F9;}
       </div>
       <div class="connect-box">
         <span class="status-pill status-demo" id="statusPill">Modo demo</span>
-        <label class="autoref"><input type="checkbox" id="autoRefreshToggle" checked onchange="setupAutoRefresh()"> Auto (5 min)</label>
-        <input type="text" id="sheetIdInput" placeholder="ID de tu Google Sheet">
-        <button class="btn btn-primary" id="connectBtn" onclick="connectSheet()">Conectar</button>
-        <button class="btn" id="refreshBtn" onclick="refreshData()" title="Actualizar datos ahora">↻</button>
         <button class="btn btn-pdf" id="pdfBtn" onclick="handlePdfClick()">⬇ Descargar PDF</button>
+        <button class="icon-btn" id="refreshBtn" onclick="refreshData()" title="Actualizar datos ahora">↻</button>
+        <button class="icon-btn" id="gearBtn" onclick="toggleSettings()" title="Configuración de conexión">⚙</button>
+        <div class="settings-popover" id="settingsPopover" style="display:none;">
+          <div class="settings-row"><span>Estado</span><strong id="settingsStatusTxt">Modo demo</strong></div>
+          <div class="settings-row"><span>Hoja conectada</span><code id="settingsMaskedId">—</code></div>
+          <div class="settings-row"><span>Última sincronización</span><strong id="settingsSyncTxt">—</strong></div>
+          <label class="autoref"><input type="checkbox" id="autoRefreshToggle" checked onchange="setupAutoRefresh()"> Actualizar cada 5 min</label>
+          <hr>
+          <div class="settings-row-label">Conectar otra hoja (avanzado)</div>
+          <input type="text" id="sheetIdInput" placeholder="ID de Google Sheet">
+          <button class="btn btn-primary" style="width:100%;" onclick="connectSheet()">Conectar</button>
+        </div>
       </div>
     </div>
 
@@ -211,7 +249,11 @@ table.projects tr.rowlink:hover{background:#F7F8F9;}
 const CONFIG = {
   defaultSheetId: "1cT6P0M9Ix8E0zsJtGEOoo1NPEdFXa9HU",       // Google Sheet de Sesuveca del Perú SAC — enlace permanente
   autoRefreshMinutes: 5,
-  sheetNames: { proyectos: "Proyectos", cronograma: "Cronograma", finanzas: "Finanzas" }
+  sheetNames: { proyectos: "Proyectos", cronograma: "Cronograma", finanzas: "Finanzas" },
+  // Clave de acceso al detalle del dashboard, guardada como hash SHA-256 (nunca en texto plano).
+  // Clave por defecto: Sesuveca2026 — cámbiala generando un nuevo hash (instrucciones más abajo).
+  // Deja "" vacío para desactivar el candado de acceso.
+  accessCodeHash: "c26ac5f5bfd3cbb3b89019fb18ff61401dbcce92aa1253dc72738ef88f8b0ac6"
 };
 
 /* ============================================================
@@ -293,6 +335,55 @@ function fmtDate(d){ return d ? d.toLocaleDateString("es-PE",{day:"2-digit",mont
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function dateStamp(){ return new Date().toISOString().slice(0,10); }
 function slug(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"_"); }
+function maskId(id){
+  if(!id) return "—";
+  return id.length > 10 ? id.slice(0,4) + "••••••••" + id.slice(-4) : "••••••••";
+}
+
+/* ============================================================
+   CANDADO DE ACCESO
+   La clave nunca se guarda en texto plano: se compara un hash
+   SHA-256. Esto evita que alguien vea la clave con solo abrir
+   el código, pero al ser un archivo que corre en el navegador,
+   no reemplaza una autenticación real de servidor — para datos
+   muy sensibles, lo ideal es alojarlo detrás de un login
+   corporativo (intranet, Google Workspace, etc.).
+   ============================================================ */
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function checkAccess(){
+  const input = document.getElementById("lockInput");
+  const errEl = document.getElementById("lockError");
+  const hash = await sha256Hex(input.value);
+  if(hash === CONFIG.accessCodeHash){
+    unlockApp();
+  } else {
+    errEl.textContent = "Clave incorrecta. Intenta de nuevo.";
+    input.value = "";
+    input.focus();
+  }
+}
+function unlockApp(){
+  document.getElementById("lockOverlay").style.display = "none";
+  document.getElementById("app").style.visibility = "visible";
+}
+
+/* ============================================================
+   PANEL DE CONFIGURACIÓN DE CONEXIÓN
+   ============================================================ */
+function toggleSettings(){
+  const pop = document.getElementById("settingsPopover");
+  pop.style.display = pop.style.display === "none" ? "block" : "none";
+}
+document.addEventListener("click", function(e){
+  const box = document.querySelector(".connect-box");
+  const pop = document.getElementById("settingsPopover");
+  if(pop && pop.style.display === "block" && box && !box.contains(e.target)){
+    pop.style.display = "none";
+  }
+});
 
 function aggregateProjects(proyectosRaw, cronograma, finanzas){
   return proyectosRaw.map(p=>{
@@ -411,7 +502,11 @@ async function refreshData(){
     pill.textContent = "Error de conexión";
     pill.className = "status-pill status-error";
     console.error(err);
-    alert("No se pudo leer la hoja. Verifica que:\n– el ID sea correcto\n– la hoja esté compartida como 'Cualquier persona con el enlace: Lector'\n– las pestañas se llamen exactamente 'Proyectos', 'Cronograma' y 'Finanzas'\n– los datos empiecen en la fila 5, como en la plantilla\n\nDetalle: " + err.message + "\n\nSe mantiene el modo demo mientras tanto.");
+    if(window.location.protocol === "file:"){
+      alert("No se pudo conectar porque el archivo se abrió directamente desde el disco (file://).\n\nLos navegadores bloquean las peticiones a internet en ese modo por seguridad.\n\nSolución: sube este archivo .html a un hosting simple (por ejemplo, arrástralo a https://app.netlify.com/drop) y ábrelo desde ese link en vez de abrirlo con doble clic.\n\nMientras tanto se mantiene el modo demo.");
+    } else {
+      alert("No se pudo leer la hoja. Verifica que:\n– el ID sea correcto\n– la hoja esté compartida como 'Cualquier persona con el enlace: Lector'\n– las pestañas se llamen exactamente 'Proyectos', 'Cronograma' y 'Finanzas'\n– los datos empiecen en la fila 5, como en la plantilla\n\nDetalle: " + err.message + "\n\nSe mantiene el modo demo mientras tanto.");
+    }
   } finally {
     btn.textContent = "↻";
   }
@@ -429,7 +524,7 @@ function updateStatusPill(source){
   const pill = document.getElementById("statusPill");
   const foot = document.getElementById("sidebarFoot");
   const sub = document.getElementById("topSub");
-  const syncTxt = STATE.lastSync ? STATE.lastSync.toLocaleTimeString("es-PE") : "";
+  const syncTxt = STATE.lastSync ? STATE.lastSync.toLocaleTimeString("es-PE") : "—";
   if(source === "live"){
     pill.textContent = "Conectado";
     pill.className = "status-pill status-live";
@@ -441,6 +536,9 @@ function updateStatusPill(source){
     sub.textContent = "Datos de ejemplo — conecta tu Google Sheet para ver información real";
     foot.textContent = STATE.projects.length + " proyectos · datos de ejemplo";
   }
+  document.getElementById("settingsStatusTxt").textContent = source === "live" ? "Conectado" : "Modo demo";
+  document.getElementById("settingsMaskedId").textContent = maskId(STATE.sheetId);
+  document.getElementById("settingsSyncTxt").textContent = syncTxt;
 }
 
 /* ============================================================
@@ -851,6 +949,9 @@ async function generatePDF(scope){
    INIT
    ============================================================ */
 (function init(){
+  if(!CONFIG.accessCodeHash){ unlockApp(); }
+  else { setTimeout(()=>document.getElementById("lockInput").focus(), 200); }
+
   const raw = loadDemo();
   STATE.proyectosRaw = raw.proyectosRaw;
   STATE.cronograma = raw.cronograma;
@@ -860,10 +961,10 @@ async function generatePDF(scope){
   showPortfolio();
 
   // enlace automático: parámetro ?sheet=ID en la URL, o CONFIG.defaultSheetId
+  // (no se muestra en ningún campo de texto — solo queda en memoria del navegador)
   const urlParams = new URLSearchParams(window.location.search);
   const autoId = urlParams.get("sheet") || CONFIG.defaultSheetId;
   if(autoId){
-    document.getElementById("sheetIdInput").value = autoId;
     STATE.sheetId = autoId;
     refreshData();
   }
